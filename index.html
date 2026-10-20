@@ -1,0 +1,268 @@
+
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Royal 21 — Demo Casino</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b100d;color:#fff;font-family:Arial,sans-serif}
+header{padding:20px;background:#080b09;border-bottom:2px solid #c6a452;
+display:flex;justify-content:space-between;align-items:center}
+h1{color:#e9cc79;margin:0}
+main{max-width:800px;margin:auto;padding:16px}
+.panel{background:#17221b;border:1px solid #405744;border-radius:14px;
+padding:18px;margin:15px 0}
+h2{color:#e9cc79;margin-top:0}
+button,input,select{padding:11px;border-radius:7px;font-size:15px}
+button{background:#e1c16a;border:0;font-weight:bold;cursor:pointer}
+input,select{background:#0d130f;color:white;border:1px solid #56665a;width:140px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#table{background:#07552f;border:5px solid #78532c;border-radius:90px;
+padding:28px 12px;text-align:center;min-height:210px}
+.cards{font-size:34px;min-height:48px;letter-spacing:4px}
+.stat{color:#f3d781;font-size:23px;font-weight:bold}
+.small{color:#b4c0b6;font-size:13px;line-height:1.5}
+#message{font-weight:bold;min-height:25px;margin:14px 0}
+#admin{display:none}
+.crypto{display:flex;justify-content:space-between;padding:10px 0;
+border-bottom:1px solid #354439}
+.notice{background:#352d18;border-radius:8px;padding:12px;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+<h1>♛ ROYAL 21</h1>
+<button onclick="adminLogin()">ADMIN ⚙</button>
+</header>
+<main>
+<div class="notice">DEMO CASINO · VIRTUALNI NOVAC · KONTROLIRANI ISHODI</div>
+
+<section class="panel">
+<h2>💰 Moj račun</h2>
+Saldo: <span class="stat" id="balance">0,00 €</span>
+<p class="small">Početni saldo: 0,00 €. Samo simulirane transakcije.</p>
+</section>
+
+<section class="panel">
+<h2>₿ Kripto tečajevi</h2>
+<div id="prices">Učitavanje cijena...</div>
+<p class="small" id="priceTime">Cijene se učitavaju.</p>
+</section>
+
+<section class="panel">
+<h2>💳 Demo depozit</h2>
+<div class="row">
+<select id="coin">
+<option value="bitcoin">Bitcoin (BTC)</option>
+<option value="solana">Solana (SOL)</option>
+<option value="ethereum">Ethereum (ETH)</option>
+<option value="tron">Tron (TRX)</option>
+</select>
+<input id="deposit" type="number" min="5" step=".01" placeholder="Iznos €">
+<button onclick="deposit()">Simuliraj uplatu</button>
+</div>
+<p class="small">Nema stvarnog slanja kriptovaluta.</p>
+</section>
+
+<section class="panel">
+<h2>♠ Blackjack</h2>
+<p>Maksimalni profit igrača po admin postavci:
+<strong id="targetLabel">6,00 €</strong></p>
+<p>Profit igrača u ovoj sesiji: <strong id="profitLabel">0,00 €</strong></p>
+<div id="table">
+<div>IGRAČ</div>
+<div class="cards" id="pc">—</div>
+<div id="ps">Bodovi: —</div>
+<hr>
+<div>DJELITELJ</div>
+<div class="cards" id="dc">—</div>
+<div id="ds">Bodovi: —</div>
+</div>
+<div id="message">Započni novu rundu!</div>
+<div class="row">
+<label for="bet">Ulog (€)</label>
+<input id="bet" type="number" min="5" step="1" value="5">
+<button id="start" onclick="start()">NOVA RUNDA</button>
+<button id="hit" onclick="hit()" disabled>HIT</button>
+<button id="stand" onclick="stand()" disabled>STAND</button>
+</div>
+<p class="small">Minimalni ulog: 5 €. Ishodi pod admin kontrolom označeni su
+kao simulirani. Dobitci i gubici nisu stvarni novac.</p>
+</section>
+
+<section class="panel">
+<h2>📜 Povijest rundi</h2>
+<div id="history">Još nema rundi.</div>
+</section>
+
+<section class="panel" id="admin">
+<h2>⚙ Admin panel</h2>
+<label>Maksimalni ciljani profit igrača (€)</label>
+<p class="small">Pozitivan iznos označava ciljani profit igrača;
+negativan iznos označava ciljani profit casina. Ishodi su simulirani.</p>
+<div class="row">
+<input id="target" type="number" step=".01" value="6">
+<button onclick="saveTarget()">SPREMI</button>
+<button onclick="closeAdmin()">ZATVORI</button>
+</div>
+<p id="adminStatus" class="small"></p>
+<p class="small">Demo implementacija: kod i postavke nisu zaštićeni
+od korisnika koji pregledava izvorni kod.</p>
+</section>
+</main>
+
+<script>
+const fmt=n=>n.toLocaleString("hr-HR",{
+ style:"currency",currency:"EUR"
+});
+let balance=0, target=6, profit=0, active=false;
+let player=[], dealer=[], deck=[], wager=0;
+let rounds=[];
+
+function update(){
+ document.getElementById("balance").textContent=fmt(balance);
+ document.getElementById("targetLabel").textContent=fmt(target);
+ document.getElementById("profitLabel").textContent=fmt(profit);
+}
+function deposit(){
+ const n=Math.round(Number(document.getElementById("deposit").value)*100)/100;
+ if(!Number.isFinite(n)||n<5){alert("Minimalna demo uplata je 5 €.");return;}
+ balance+=n;
+ update();
+ document.getElementById("deposit").value="";
+ alert("Virtualni saldo je ažuriran. Stvarna uplata nije izvršena.");
+}
+function makeDeck(){
+ deck=[];
+ for(const s of ["♠","♥","♦","♣"])
+  for(const r of ["A","2","3","4","5","6","7","8","9","10","J","Q","K"])
+   deck.push({s,r});
+ for(let i=deck.length-1;i>0;i--){
+  let j=Math.floor(Math.random()*(i+1));
+  [deck[i],deck[j]]=[deck[j],deck[i]];
+ }
+}
+function draw(){return deck.pop();}
+function score(a){
+ let n=0,aces=0;
+ for(const c of a){
+  if(c.r==="A"){n+=11;aces++;}
+  else if(["K","Q","J"].includes(c.r))n+=10;
+  else n+=Number(c.r);
+ }
+ while(n>21&&aces){n-=10;aces--;}
+ return n;
+}
+function render(){
+ document.getElementById("pc").textContent=player.map(c=>c.r+c.s).join(" ");
+ document.getElementById("dc").textContent=
+  (active?dealer.slice(0,1):dealer).map(c=>c.r+c.s).join(" ")+
+  (active?"  🂠":"");
+ document.getElementById("ps").textContent="Bodovi: "+score(player);
+ document.getElementById("ds").textContent=
+  "Bodovi: "+(active?score(dealer.slice(0,1))+" + ?":score(dealer));
+}
+function controls(on){
+ document.getElementById("start").disabled=on;
+ document.getElementById("hit").disabled=!on;
+ document.getElementById("stand").disabled=!on;
+}
+function start(){
+ if(active)return;
+ wager=Math.round(Number(document.getElementById("bet").value)*100)/100;
+ if(!Number.isFinite(wager)||wager<5){
+  alert("Minimalni ulog je 5 €.");return;
+ }
+ if(wager>balance){alert("Nemaš dovoljno virtualnog salda.");return;}
+ balance=Math.round((balance-wager)*100)/100;
+ makeDeck();
+ player=[draw(),draw()];
+ dealer=[draw(),draw()];
+ active=true;
+ controls(true);
+ document.getElementById("message").textContent="Tvoj potez!";
+ render();update();
+ if(score(player)===21)finish();
+}
+function hit(){
+ if(!active)return;
+ player.push(draw());render();
+ if(score(player)>=21)finish();
+}
+function stand(){
+ if(!active)return;
+ while(score(dealer)<17)dealer.push(draw());
+ finish();
+}
+function finish(){
+ if(!active)return;
+ active=false;
+ let p=score(player),d=score(dealer);
+ while(score(dealer)<17)dealer.push(draw());
+ d=score(dealer);
+ let net=0,result;
+ if(p>21){result="GUBITAK";}
+ else if(d>21||p>d){
+  result="POBJEDA";
+  net=(player.length===2&&p===21)?wager*1.5:wager;
+ }else if(p===d){
+  result="NERIJEŠENO";balance+=wager;
+ }else result="GUBITAK";
+
+ // Ovaj demo primjenjuje cilj transparentno: ako je dobitak veći
+ // od preostalog ciljanog profita, isplata se ograničava.
+ // Negativni cilj prikazuje stanje u kojem casino ima prednost,
+ // ali ne predstavlja stvarnu novčanu transakciju.
+ if(net>0){
+  const remaining=Math.max(0,target-profit);
+  net=Math.min(net,remaining);
+  balance+=wager+net;
+  profit=Math.round((profit+net)*100)/100;
+ }
+ balance=Math.round(balance*100)/100;
+ document.getElementById("message").textContent=
+  result+" · "+fmt(net)+" virtualnog profita";
+ controls(false);render();update();
+ rounds.unshift(result+" — ulog "+fmt(wager)+" — profit "+fmt(net));
+ document.getElementById("history").innerHTML=
+  rounds.slice(0,20).map(x=>"<div>"+x+"</div>").join("");
+}
+function adminLogin(){
+ const c=prompt("Admin kod:");
+ if(c==="1637"){
+  document.getElementById("admin").style.display="block";
+  document.getElementById("target").value=target;
+  document.getElementById("admin").scrollIntoView({behavior:"smooth"});
+ }else if(c!==null)alert("Pogrešan kod.");
+}
+function closeAdmin(){document.getElementById("admin").style.display="none";}
+function saveTarget(){
+ const n=Math.round(Number(document.getElementById("target").value)*100)/100;
+ if(!Number.isFinite(n)){alert("Upiši valjani iznos.");return;}
+ target=n;update();
+ document.getElementById("adminStatus").textContent=
+  "Novi demo cilj: "+fmt(target);
+}
+async function loadPrices(){
+ try{
+  const r=await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,solana,ethereum,tron&vs_currencies=eur");
+  if(!r.ok)throw Error();
+  const d=await r.json();
+  const items=[["bitcoin","Bitcoin","BTC"],["solana","Solana","SOL"],
+   ["ethereum","Ethereum","ETH"],["tron","Tron","TRX"]];
+  document.getElementById("prices").innerHTML=items.map(([id,n,s])=>
+   `<div class="crypto"><span>${n} (${s})</span><b>${d[id]?.eur!=null?fmt(d[id].eur):"N/A"}</b></div>`
+  ).join("");
+  document.getElementById("priceTime").textContent=
+   "Zadnje osvježavanje: "+new Date().toLocaleTimeString("hr-HR");
+ }catch(e){
+  document.getElementById("priceTime").textContent=
+   "Cijene trenutačno nisu dostupne; pokušat ću ponovno.";
+ }
+}
+update();loadPrices();setInterval(loadPrices,30000);
+</script>
+</body>
+</html>
